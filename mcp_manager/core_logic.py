@@ -21,6 +21,7 @@ import sys
 import uuid
 import platformdirs
 import psutil
+import shutil
 from typing import Dict, List, Optional, Tuple, Any
 
 # Set up logging
@@ -300,16 +301,27 @@ def test_server_command(
         - If error, (False, error_message)
     """
     logger.info(f"Testing server command: {' '.join(command + args)}")
-    
+
+    # Resolve the command executable path
+    resolved_command = command.copy()
+    if resolved_command:
+        exe_path = shutil.which(resolved_command[0])
+        if exe_path:
+            resolved_command[0] = exe_path
+        else:
+            error_msg = f"Command not found in PATH: {resolved_command[0]}"
+            logger.error(error_msg)
+            return (False, error_msg)
+
     # Prepare the full command
-    full_cmd = command + args
-    
+    full_cmd = resolved_command + args
+
     # Prepare the environment
     current_env = os.environ.copy()
     if env:
         logger.debug(f"Using custom environment variables: {env}")
         current_env.update(env)
-    
+
     try:
         # Start the process with redirected output
         logger.debug("Launching process...")

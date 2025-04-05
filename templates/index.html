@@ -107,7 +107,6 @@
                             <tr class="server-row" data-server-id="{{ server.id }}" data-server-name="{{ server.name }}">
                                 <td>
                                     <strong>{{ server.name }}</strong>
-                                    <div class="small text-muted">ID: {{ server.id }}</div>
                                 </td>
                                 <td>
                                     {% if server.enabled_in_claude %}
@@ -235,6 +234,11 @@
         </div>
     </div>
 
+    <!-- Toast container -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 1100">
+        <div id="toast-container"></div>
+    </div>
+
     <footer class="bg-light py-3 mt-4">
         <div class="container text-center text-muted">
             <small>MCP Server Manager v0.1.0 | <a href="https://github.com/anthropics/claude-mcp" target="_blank">Model Context Protocol</a></small>
@@ -247,36 +251,33 @@
     <!-- Custom JavaScript for functionality -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Message area for displaying feedback
-            const messageArea = document.getElementById('message-area');
-            
-            // Function to show messages
+            const toastContainer = document.getElementById('toast-container');
+
             function showMessage(type, text, autoDismiss = true) {
-                messageArea.textContent = text;
-                messageArea.className = `alert alert-${type} my-3 fade-in`;
-                messageArea.classList.remove('d-none');
-                
-                // Add dismiss button
-                const dismissButton = document.createElement('button');
-                dismissButton.type = 'button';
-                dismissButton.className = 'btn-close';
-                dismissButton.setAttribute('aria-label', 'Close');
-                dismissButton.addEventListener('click', () => {
-                    messageArea.classList.add('d-none');
-                });
-                messageArea.appendChild(dismissButton);
-                
-                // Auto-hide after 5 seconds if requested
+                const toast = document.createElement('div');
+                toast.className = `toast align-items-center text-bg-${type} border-0 fade show`;
+                toast.setAttribute('role', 'alert');
+                toast.setAttribute('aria-live', 'assertive');
+                toast.setAttribute('aria-atomic', 'true');
+
+                toast.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">${text}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>`;
+
+                toastContainer.appendChild(toast);
+
+                const bsToast = new bootstrap.Toast(toast, { delay: 5000 });
+                bsToast.show();
+
                 if (autoDismiss) {
                     setTimeout(() => {
-                        messageArea.classList.add('d-none');
+                        bsToast.hide();
                     }, 5000);
                 }
-                
-                // Scroll to message
-                messageArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-            
+
             // Clipboard paste functionality
             const registerForm = document.getElementById('register-server-form');
             if (registerForm) {
@@ -294,7 +295,7 @@
                 if (formCard && formCard.querySelector('.card-header')) {
                     const pasteHint = document.createElement('span');
                     pasteHint.className = 'badge bg-info text-dark ms-2';
-                    pasteHint.innerHTML = '<i class="bi bi-clipboard-check"></i> Paste JSON config supported';
+                    pasteHint.innerHTML = '<i class="bi bi-clipboard-check"></i>CTRL+V to paste'; 
                     formCard.querySelector('.card-header h5').appendChild(pasteHint);
                 }
 
@@ -466,9 +467,6 @@
                     // Show loading state
                     restartBtn.disabled = true;
                     restartBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Restarting...';
-                    
-                    // Hide any previous messages
-                    messageArea.classList.add('d-none');
                     
                     try {
                         console.log('Making API request to /api/claude/restart');
