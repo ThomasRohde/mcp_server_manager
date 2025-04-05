@@ -72,40 +72,61 @@ server = Server("mcp-server-manager")
 def discover_servers_from_claude_config() -> None:
     """
     Check the Claude Desktop config file for MCP servers not in our inventory,
-    and add them to our installed_servers.json file.
+    add them to our installed_servers.json file, and ensure the MCP Server Manager itself is registered.
     """
     logger.info("Discovering MCP servers from Claude Desktop config")
-    
+
     try:
         # Read both configs
         installed_servers = read_installed_servers()
         claude_config = read_claude_config()
-        
+
         # Extract server names from installed servers for easy lookup
         installed_server_names = {server.get('name', ''): server for server in installed_servers}
-        
+
+        # Add MCP Server Manager itself if missing
+        manager_name = "MCP Server Manager"
+        if manager_name not in installed_server_names:
+            logger.info("Adding MCP Server Manager self-registration entry")
+            manager_server = {
+                'id': generate_unique_id(),
+                'name': manager_name,
+                'command': [sys.executable],
+                'arguments': [os.path.abspath(__file__)],
+                'environment': {},
+                'enabled_in_claude': False,
+                'source_type': 'self',
+                'source_location': os.path.abspath(__file__)
+            }
+            installed_servers.append(manager_server)
+            write_installed_servers(installed_servers)
+            installed_server_names[manager_name] = manager_server
+            logger.info("MCP Server Manager registered in installed servers")
+        else:
+            logger.info("MCP Server Manager already registered")
+
         # Check if the Claude config has an mcpServers section
         mcp_servers = claude_config.get('mcpServers', {})
         if not mcp_servers:
             logger.info("No MCP servers found in Claude Desktop config")
-            return
-        
+            mcp_servers = {}
+
         added_count = 0
         for server_name, server_config in mcp_servers.items():
             # Skip if server already exists in our inventory
             if server_name in installed_server_names:
                 logger.info(f"Server '{server_name}' already in inventory, skipping")
                 continue
-                
+
             # Extract server details from Claude config
             command_str = server_config.get('command', '')
             args = server_config.get('args', [])
             env = server_config.get('env', {})
-            
+
             if not command_str:
                 logger.warning(f"Server '{server_name}' in Claude config has no command, skipping")
                 continue
-                
+
             # Create new server entry
             new_server = {
                 'id': generate_unique_id(),
@@ -117,19 +138,18 @@ def discover_servers_from_claude_config() -> None:
                 'source_type': 'claude_config',
                 'source_location': 'Discovered from Claude Desktop configuration'
             }
-            
-            # Add to installed servers
+
             installed_servers.append(new_server)
             added_count += 1
             logger.info(f"Added server '{server_name}' from Claude config to inventory")
-        
+
         # Save updated inventory if changes were made
         if added_count > 0:
             write_installed_servers(installed_servers)
             logger.info(f"Added {added_count} servers from Claude config to inventory")
         else:
             logger.info("No new servers found in Claude config")
-            
+
     except Exception as e:
         logger.error(f"Error discovering servers from Claude config: {str(e)}")
 
