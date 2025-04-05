@@ -1,9 +1,13 @@
 [project]
 name = "mcp-server-manager"
 version = "0.1.0"
-description = "Add your description here"
+description = "A backend Python application for managing MCP servers with Claude Desktop"
 readme = "README.md"
 requires-python = ">=3.13"
+authors = [
+    {name = "Thomas Klok Rohde", email = "rohde.thomas@gmail.com"},
+]
+license = {text = "MIT"}
 dependencies = [
     "fastapi>=0.115.12",
     "jinja2>=3.1.6",
@@ -14,3 +18,25 @@ dependencies = [
     "python-multipart>=0.0.20",
     "uvicorn[standard]>=0.34.0",
 ]
+
+[project.urls]
+"Homepage" = "https://github.com/yourusername/mcp-commander"
+"Bug Tracker" = "https://github.com/yourusername/mcp-commander/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["mcp_manager*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.7.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+mcp-manager = "mcp_manager.mcp_server:main_mcp"
