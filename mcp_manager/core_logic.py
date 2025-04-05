@@ -537,7 +537,6 @@ def start_claude_application() -> Tuple[bool, Optional[str]]:
                 os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Claude', 'Claude.exe'),
                 os.path.join(os.environ.get('PROGRAMFILES', ''), 'Claude', 'Claude.exe'),
                 os.path.join(os.environ.get('PROGRAMFILES(X86)', ''), 'Claude', 'Claude.exe'),
-                r'C:\Users\thoma\AppData\Local\AnthropicClaude\claude.exe'  # Explicitly adding the known path
             ]
             # Check if any of the potential paths exist
             for path in potential_paths:
