@@ -30,7 +30,8 @@ from mcp_manager.core_logic import (
     find_claude_processes,
     terminate_processes,
     start_claude_application,
-    generate_unique_id
+    generate_unique_id,
+    test_server_command
 )
 
 # Set up logging
@@ -203,6 +204,43 @@ async def handle_list_tools() -> List[mcp.types.Tool]:
                     {"required": ["server_name"]}
                 ]
             }
+        ),
+        mcp.types.Tool(
+            name="install_mcp_server",
+            description="Register a new MCP server configuration. Tests the server command before registration.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "A unique name for the server"
+                    },
+                    "command": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "The command to run the server, e.g. ['python', 'server.py']"
+                    },
+                    "arguments": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Additional arguments to pass to the server command"
+                    },
+                    "environment": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                        "description": "Environment variables to set when running the server"
+                    },
+                    "source_type": {
+                        "type": "string",
+                        "description": "The type of source (e.g., 'pip', 'git', 'local')"
+                    },
+                    "source_location": {
+                        "type": "string",
+                        "description": "Where the server was installed from (e.g., package name, git URL, file path)"
+                    }
+                },
+                "required": ["name", "command", "arguments"]
+            }
         )
     ]
 
@@ -374,6 +412,101 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[Union[m
             
         except Exception as e:
             error_msg = f"Unexpected error setting server status: {str(e)}"
+            logger.exception(error_msg)
+            result = {
+                "status": "error",
+                "message": error_msg
+            }
+            return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+    
+    elif name == "install_mcp_server":
+        # Extract arguments
+        server_name = arguments.get("name")
+        command = arguments.get("command")
+        cmd_arguments = arguments.get("arguments", [])
+        environment = arguments.get("environment", {})
+        source_type = arguments.get("source_type", "")
+        source_location = arguments.get("source_location", "")
+        
+        # Validate required fields
+        if not server_name:
+            error_msg = "Missing required field: 'name'"
+            logger.error(error_msg)
+            result = {
+                "status": "error",
+                "message": error_msg
+            }
+            return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+            
+        if not command or not isinstance(command, list) or len(command) == 0:
+            error_msg = "Missing or invalid 'command': must be a non-empty list of strings"
+            logger.error(error_msg)
+            result = {
+                "status": "error",
+                "message": error_msg
+            }
+            return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+        
+        # Test the server command
+        logger.info(f"Testing server command: {command} {cmd_arguments}")
+        success, error_msg = test_server_command(command, cmd_arguments, environment)
+        
+        if not success:
+            # Command verification failed
+            error_msg = f"Server command verification failed: {error_msg}"
+            logger.error(error_msg)
+            result = {
+                "status": "error",
+                "message": error_msg
+            }
+            return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+        
+        # Verification succeeded, create new server entry
+        server_id = generate_unique_id()
+        logger.info(f"Server command verified successfully. Generating ID: {server_id}")
+        
+        new_server = {
+            'id': server_id,
+            'name': server_name,
+            'command': command,
+            'arguments': cmd_arguments,
+            'enabled_in_claude': False,  # Default to disabled
+            'environment': environment,
+            'source_type': source_type,
+            'source_location': source_location
+        }
+        
+        # Read existing servers
+        try:
+            servers = read_installed_servers()
+            
+            # Check for duplicate names
+            for server in servers:
+                if server['name'] == server_name:
+                    error_msg = f"A server with the name '{server_name}' already exists"
+                    logger.error(error_msg)
+                    result = {
+                        "status": "error",
+                        "message": error_msg
+                    }
+                    return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+            
+            # Add new server and save
+            servers.append(new_server)
+            write_installed_servers(servers)
+            logger.info(f"Server '{server_name}' registered successfully with ID: {server_id}")
+            
+            # Success
+            message = f"Server '{server_name}' registered and verified successfully. It is currently disabled. Use set_server_enabled_status to enable it in Claude Desktop."
+            result = {
+                "status": "success",
+                "message": message,
+                "server_id": server_id
+            }
+            return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+            
+        except Exception as e:
+            error_msg = f"Error registering server: {str(e)}"
             logger.exception(error_msg)
             result = {
                 "status": "error",

@@ -8,73 +8,225 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        /* Custom styles */
+        .fade-in {
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            transition: all 0.3s ease;
+        }
+        .server-row {
+            transition: background-color 0.3s ease;
+        }
+        .server-row:hover {
+            background-color: rgba(0,0,0,0.03);
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1 class="mb-4">MCP Server Manager</h1>
-        
-        <!-- Message area for feedback -->
-        <div id="message-area" class="alert d-none"></div>
-        
-        <!-- Restart Claude Button -->
-        <button id="restart-claude-btn" class="btn btn-warning mb-4">
-            <i class="bi bi-arrow-repeat"></i> Restart Claude Desktop
-        </button>
-        
-        <h2 class="mt-4">Registered Servers</h2>
-        
-        {% if servers|length == 0 %}
-        <div class="alert alert-info mt-3">
-            No servers registered yet.
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-hdd-network me-2"></i>
+                MCP Server Manager
+            </a>
         </div>
-        {% else %}
-        <table class="table table-striped mt-3">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Command</th>
-                    <th>Source</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for server in servers %}
-                <tr data-server-id="{{ server.id }}" data-server-name="{{ server.name }}">
-                    <td>{{ server.name }}</td>
-                    <td>
-                        {% if server.enabled_in_claude %}
-                        <span class="badge bg-success">Enabled</span>
-                        {% else %}
-                        <span class="badge bg-secondary">Disabled</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ server.command[0] if server.command else "N/A" }}</td>
-                    <td>
-                        {% if server.source_type %}
-                        {{ server.source_type }}{% if server.source_location %}: {{ server.source_location }}{% endif %}
-                        {% else %}
-                        N/A
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input server-toggle" 
-                                   type="checkbox" 
-                                   id="toggle-{{ server.id }}" 
-                                   {% if server.enabled_in_claude %}checked{% endif %}
-                                   data-server-id="{{ server.id }}">
-                            <label class="form-check-label" for="toggle-{{ server.id }}">
-                                {% if server.enabled_in_claude %}Enabled{% else %}Disabled{% endif %}
-                            </label>
+    </nav>
+    
+    <div class="container">
+        <!-- Message area for feedback -->
+        <div id="message-area" class="alert d-none mb-4 fade-in"></div>
+        
+        <!-- Top Actions Row -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">Claude Desktop Control</h5>
+                            <p class="card-text text-muted small">Restart Claude to apply server changes</p>
                         </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
+                        <!-- Restart Claude Button -->
+                        <button id="restart-claude-btn" class="btn btn-warning">
+                            <i class="bi bi-arrow-repeat"></i> Restart Claude Desktop
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Servers Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Registered Servers</h5>
+            </div>
+            <div class="card-body">
+                {% if servers|length == 0 %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    No servers registered yet. Use the form below to register your first server.
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Command</th>
+                                <th>Source</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for server in servers %}
+                            <tr class="server-row" data-server-id="{{ server.id }}" data-server-name="{{ server.name }}">
+                                <td>
+                                    <strong>{{ server.name }}</strong>
+                                    <div class="small text-muted">ID: {{ server.id }}</div>
+                                </td>
+                                <td>
+                                    {% if server.enabled_in_claude %}
+                                    <span class="badge bg-success status-badge">Enabled</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary status-badge">Disabled</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <code>{{ server.command[0] if server.command else "N/A" }}</code>
+                                    {% if server.arguments|length > 0 %}
+                                    <div class="small text-muted">
+                                        with {{ server.arguments|length }} argument(s)
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if server.source_type %}
+                                    <span class="badge bg-info text-dark">{{ server.source_type }}</span>
+                                    {% if server.source_location %}
+                                    <div class="small text-muted">{{ server.source_location }}</div>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input server-toggle" 
+                                            type="checkbox" 
+                                            id="toggle-{{ server.id }}" 
+                                            {% if server.enabled_in_claude %}checked{% endif %}
+                                            data-server-id="{{ server.id }}">
+                                        <label class="form-check-label" for="toggle-{{ server.id }}">
+                                            {% if server.enabled_in_claude %}Enabled{% else %}Disabled{% endif %}
+                                        </label>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Register New Server Form -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Register New Server</h5>
+            </div>
+            <div class="card-body">
+                <form id="register-server-form" class="needs-validation" novalidate>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="name" class="form-label">Server Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required 
+                                pattern="^[a-zA-Z0-9_\-. ]+$" minlength="2" maxlength="50">
+                            <div class="invalid-feedback">
+                                Please enter a valid server name (2-50 characters, alphanumeric with spaces, dots, underscores, and hyphens).
+                            </div>
+                            <div class="form-text">A unique and descriptive name for this server</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="command_str" class="form-label">Command <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="command_str" name="command_str" required
+                                minlength="1" maxlength="1024">
+                            <div class="invalid-feedback">
+                                Please enter the command to start the server.
+                            </div>
+                            <div class="form-text">The command to start the server (e.g., python, node, /path/to/executable)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="arguments_str" class="form-label">Arguments</label>
+                            <input type="text" class="form-control" id="arguments_str" name="arguments_str" 
+                                maxlength="1024">
+                            <div class="form-text">Additional arguments to pass to the command (e.g., -p 8000 --debug)</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="environment_str" class="form-label">Environment Variables</label>
+                            <textarea class="form-control" id="environment_str" name="environment_str" rows="2"
+                                maxlength="2048"></textarea>
+                            <div class="form-text">One KEY=VALUE per line (e.g., PORT=8000)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="source_type" class="form-label">Source Type</label>
+                            <select class="form-select" id="source_type" name="source_type">
+                                <option value="" selected>None</option>
+                                <option value="local">Local</option>
+                                <option value="git">Git Repository</option>
+                                <option value="pip">Python Package</option>
+                                <option value="npm">NPM Package</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <div class="form-text">Where this server was installed from</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="source_location" class="form-label">Source Location</label>
+                            <input type="text" class="form-control" id="source_location" name="source_location"
+                                maxlength="1024">
+                            <div class="form-text">Path, URL, or package name</div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-hdd-rack me-1"></i> Register Server
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-muted">
+                <small><i class="bi bi-info-circle me-1"></i> After registration, the server will be verified by attempting to run it briefly.</small>
+            </div>
+        </div>
     </div>
+
+    <footer class="bg-light py-3 mt-4">
+        <div class="container text-center text-muted">
+            <small>MCP Server Manager v0.1.0 | <a href="https://github.com/anthropics/claude-mcp" target="_blank">Model Context Protocol</a></small>
+        </div>
+    </footer>
 
     <!-- Bootstrap JS (optional) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -86,15 +238,30 @@
             const messageArea = document.getElementById('message-area');
             
             // Function to show messages
-            function showMessage(type, text) {
+            function showMessage(type, text, autoDismiss = true) {
                 messageArea.textContent = text;
-                messageArea.className = `alert alert-${type} my-3`;
+                messageArea.className = `alert alert-${type} my-3 fade-in`;
                 messageArea.classList.remove('d-none');
                 
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
+                // Add dismiss button
+                const dismissButton = document.createElement('button');
+                dismissButton.type = 'button';
+                dismissButton.className = 'btn-close';
+                dismissButton.setAttribute('aria-label', 'Close');
+                dismissButton.addEventListener('click', () => {
                     messageArea.classList.add('d-none');
-                }, 5000);
+                });
+                messageArea.appendChild(dismissButton);
+                
+                // Auto-hide after 5 seconds if requested
+                if (autoDismiss) {
+                    setTimeout(() => {
+                        messageArea.classList.add('d-none');
+                    }, 5000);
+                }
+                
+                // Scroll to message
+                messageArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
             
             // Restart Claude functionality
@@ -128,12 +295,12 @@
                         if (response.ok) {
                             showMessage('success', data.message);
                         } else {
-                            showMessage('danger', data.detail || 'An error occurred while restarting Claude Desktop');
+                            showMessage('danger', data.detail || 'An error occurred while restarting Claude Desktop', false);
                         }
                     } catch (error) {
                         // Handle network errors
                         console.error('Error during API call:', error);
-                        showMessage('danger', 'Network error: Failed to connect to the server');
+                        showMessage('danger', 'Network error: Failed to connect to the server', false);
                     } finally {
                         // Reset button state
                         restartBtn.disabled = false;
@@ -152,10 +319,20 @@
                     const serverName = serverRow ? serverRow.getAttribute('data-server-name') : 'Unknown server';
                     const enabled = this.checked;
                     
+                    // Apply visual indication of pending state
+                    serverRow.classList.add('table-warning');
+                    
                     // Update label text immediately for better UX
                     const label = document.querySelector(`label[for="toggle-${serverId}"]`);
                     if (label) {
                         label.textContent = enabled ? 'Enabling...' : 'Disabling...';
+                    }
+                    
+                    // Update status badge
+                    const statusBadge = serverRow.querySelector('.badge');
+                    if (statusBadge) {
+                        statusBadge.className = 'badge bg-warning text-dark status-badge';
+                        statusBadge.textContent = 'Updating...';
                     }
                     
                     // Disable toggle during API call
@@ -175,10 +352,12 @@
                         
                         // Handle response
                         if (response.ok) {
+                            // Remove pending visual state
+                            serverRow.classList.remove('table-warning');
+                            
                             // Update status badge
-                            const statusBadge = serverRow.querySelector('.badge');
                             if (statusBadge) {
-                                statusBadge.className = enabled ? 'badge bg-success' : 'badge bg-secondary';
+                                statusBadge.className = enabled ? 'badge bg-success status-badge' : 'badge bg-secondary status-badge';
                                 statusBadge.textContent = enabled ? 'Enabled' : 'Disabled';
                             }
                             
@@ -190,18 +369,30 @@
                             // Show success message
                             showMessage('success', data.message);
                         } else {
+                            // Remove pending visual state
+                            serverRow.classList.remove('table-warning');
+                            
                             // Revert toggle state on error
                             this.checked = !enabled;
                             if (label) {
                                 label.textContent = !enabled ? 'Enabled' : 'Disabled';
                             }
                             
+                            // Revert status badge
+                            if (statusBadge) {
+                                statusBadge.className = !enabled ? 'badge bg-success status-badge' : 'badge bg-secondary status-badge';
+                                statusBadge.textContent = !enabled ? 'Enabled' : 'Disabled';
+                            }
+                            
                             // Show error message
-                            showMessage('danger', data.detail || 'Failed to update server status');
+                            showMessage('danger', data.detail || 'Failed to update server status', false);
                         }
                     } catch (error) {
                         // Handle network errors
                         console.error('Error during API call:', error);
+                        
+                        // Remove pending visual state
+                        serverRow.classList.remove('table-warning');
                         
                         // Revert toggle state
                         this.checked = !enabled;
@@ -209,14 +400,92 @@
                             label.textContent = !enabled ? 'Enabled' : 'Disabled';
                         }
                         
+                        // Revert status badge
+                        if (statusBadge) {
+                            statusBadge.className = !enabled ? 'badge bg-success status-badge' : 'badge bg-secondary status-badge';
+                            statusBadge.textContent = !enabled ? 'Enabled' : 'Disabled';
+                        }
+                        
                         // Show error message
-                        showMessage('danger', 'Network error: Failed to connect to the server');
+                        showMessage('danger', 'Network error: Failed to connect to the server', false);
                     } finally {
                         // Re-enable toggle
                         this.disabled = false;
                     }
                 });
             });
+            
+            // Server Registration Form Submission
+            const registerServerForm = document.getElementById('register-server-form');
+            if (registerServerForm) {
+                // Enable Bootstrap form validation
+                registerServerForm.addEventListener('submit', function(event) {
+                    if (!this.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    this.classList.add('was-validated');
+                });
+                
+                registerServerForm.addEventListener('submit', async function(event) {
+                    // Prevent default form submission
+                    event.preventDefault();
+                    
+                    // Check form validity (Bootstrap validation)
+                    if (!this.checkValidity()) {
+                        return;
+                    }
+                    
+                    // Get the submit button for changing its state
+                    const submitButton = registerServerForm.querySelector('button[type="submit"]');
+                    
+                    // Show loading state
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Registering...';
+                    
+                    // Create FormData object from the form
+                    const formData = new FormData(registerServerForm);
+                    
+                    try {
+                        // Show registering message
+                        showMessage('info', `Registering server "${formData.get('name')}"... This may take a moment as the server command is verified.`, false);
+                        
+                        // Send POST request to the server registration API
+                        const response = await fetch('/api/servers', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        
+                        // Handle the response
+                        if (response.ok) {
+                            // Show success message
+                            showMessage('success', data.message);
+                            
+                            // Reset the form and remove validation styling
+                            registerServerForm.reset();
+                            registerServerForm.classList.remove('was-validated');
+                            
+                            // Refresh the page after a short delay to show the new server
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1500);
+                        } else {
+                            // Show error message
+                            showMessage('danger', data.detail || 'Failed to register server', false);
+                        }
+                    } catch (error) {
+                        // Handle network errors
+                        console.error('Error during API call:', error);
+                        showMessage('danger', 'Network error: Failed to connect to the server', false);
+                    } finally {
+                        // Reset button state
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = '<i class="bi bi-hdd-rack me-1"></i> Register Server';
+                    }
+                });
+            }
         });
     </script>
 </body>
