@@ -32,6 +32,19 @@
         .server-row:hover {
             background-color: rgba(0,0,0,0.03);
         }
+        /* Paste indicator styles */
+        .paste-indicator {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 5px 10px;
+            background-color: rgba(0,0,0,0.05);
+            border-radius: 0 0.25rem 0 0.25rem;
+            font-size: 0.8rem;
+        }
+        .form-group {
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -262,6 +275,186 @@
                 
                 // Scroll to message
                 messageArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            
+            // Clipboard paste functionality
+            const registerForm = document.getElementById('register-server-form');
+            if (registerForm) {
+                // We need to capture the paste event at the form level, not just on inputs
+                registerForm.addEventListener('paste', handleClipboardPaste);
+                
+                // Also add to each individual input for better coverage
+                const formInputs = registerForm.querySelectorAll('input, textarea');
+                formInputs.forEach(input => {
+                    input.addEventListener('paste', handleClipboardPaste);
+                });
+                
+                // Add a visual indicator that clipboard paste is available
+                const formCard = registerForm.closest('.card');
+                if (formCard && formCard.querySelector('.card-header')) {
+                    const pasteHint = document.createElement('span');
+                    pasteHint.className = 'badge bg-info text-dark ms-2';
+                    pasteHint.innerHTML = '<i class="bi bi-clipboard-check"></i> Paste JSON config supported';
+                    formCard.querySelector('.card-header h5').appendChild(pasteHint);
+                }
+
+                function handleClipboardPaste(event) {
+                    console.log('Paste event detected');
+                    
+                    // Get clipboard content
+                    const clipboardData = event.clipboardData || window.clipboardData;
+                    if (!clipboardData) {
+                        console.error('No clipboard data available');
+                        return;
+                    }
+                    
+                    const pastedData = clipboardData.getData('text');
+                    console.log('Pasted data:', pastedData.substring(0, 50) + '...');
+                    
+                    if (!pastedData || pastedData.trim() === '') {
+                        console.log('Paste data is empty');
+                        return;
+                    }
+                    
+                    try {
+                        let jsonData = null;
+                        let parsed = false;
+                        let serverKey = null;
+                        
+                        if (pastedData.includes('"mcpServers"')) {
+                            console.log('Detected mcpServers format');
+                            try {
+                                const fullConfig = JSON.parse(pastedData);
+                                if (fullConfig && fullConfig.mcpServers) {
+                                    serverKey = Object.keys(fullConfig.mcpServers)[0];
+                                    jsonData = fullConfig.mcpServers[serverKey];
+                                    parsed = true;
+                                }
+                            } catch (e) {
+                                console.log('Trying to extract mcpServers section');
+                                const match = pastedData.match(/"mcpServers"\s*:\s*{([^}]+})/);
+                                if (match && match[1]) {
+                                    const serverMatch = match[1].match(/"([^"]+)"\s*:\s*({[^}]+})/);
+                                    if (serverMatch && serverMatch[1] && serverMatch[2]) {
+                                        serverKey = serverMatch[1];
+                                        jsonData = JSON.parse(serverMatch[2]);
+                                        parsed = true;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (!parsed && pastedData.includes('"command"')) {
+                            console.log('Detected direct server format');
+                            try {
+                                const directConfig = JSON.parse(pastedData);
+                                serverKey = null;
+                                jsonData = directConfig;
+                                parsed = true;
+                            } catch (e) {
+                                const match = pastedData.match(/"([^"]+)"\s*:\s*({[^}]+})/);
+                                if (match && match[1] && match[2]) {
+                                    serverKey = match[1];
+                                    jsonData = JSON.parse(match[2]);
+                                    parsed = true;
+                                }
+                                if (!parsed) {
+                                    try {
+                                        jsonData = JSON.parse(`{${pastedData}}`);
+                                        parsed = true;
+                                    } catch {}
+                                }
+                            }
+                        }
+                        
+                        if (jsonData && jsonData.command) {
+                            console.log('Valid server config found, filling form');
+                            
+                            // Show paste indicator
+                            showPasteIndicator();
+                            
+                            // Prevent default paste into the current field
+                            event.preventDefault();
+                            event.stopPropagation();
+                            
+                            // Fill form fields with data from JSON
+                            fillFormFromJson(jsonData, serverKey);
+                            
+                            // Show success message
+                            showMessage('success', 'Form filled from clipboard data', true);
+                            
+                            return false;
+                        } else {
+                            console.log('Not a valid server config, no command field found');
+                        }
+                    } catch (e) {
+                        // Not valid JSON or missing required fields - let normal paste happen
+                        console.log('Error processing clipboard data:', e);
+                    }
+                }
+                
+                function showPasteIndicator() {
+                    console.log('Showing paste indicator');
+                    // Remove any existing indicators
+                    document.querySelectorAll('.paste-indicator').forEach(el => el.remove());
+                    
+                    const indicator = document.createElement('div');
+                    indicator.className = 'paste-indicator fade-in';
+                    indicator.textContent = '✓ Pasted from clipboard';
+                    indicator.style.position = 'fixed';
+                    indicator.style.top = '10px';
+                    indicator.style.right = '10px';
+                    indicator.style.backgroundColor = '#28a745';
+                    indicator.style.color = 'white';
+                    indicator.style.padding = '8px 16px';
+                    indicator.style.borderRadius = '4px';
+                    indicator.style.zIndex = '9999';
+                    
+                    document.body.appendChild(indicator);
+                    
+                    setTimeout(() => {
+                        indicator.style.opacity = '0';
+                        setTimeout(() => indicator.remove(), 300);
+                    }, 3000);
+                }
+                
+                function fillFormFromJson(jsonData, serverKey) {
+                    const nameInput = document.getElementById('name');
+                    if (serverKey) {
+                        nameInput.value = serverKey;
+                    } else {
+                        nameInput.value = generateServerNameFromCommand(jsonData.command);
+                    }
+                    
+                    // Fill command
+                    const commandInput = document.getElementById('command_str');
+                    commandInput.value = jsonData.command;
+                    
+                    // Fill arguments if they exist
+                    const argsInput = document.getElementById('arguments_str');
+                    if (jsonData.args && Array.isArray(jsonData.args)) {
+                        argsInput.value = jsonData.args.join(' ');
+                    }
+                    
+                    // Fill environment variables if they exist
+                    const envInput = document.getElementById('environment_str');
+                    if (jsonData.env && typeof jsonData.env === 'object') {
+                        const envLines = [];
+                        for (const [key, value] of Object.entries(jsonData.env)) {
+                            envLines.push(`${key}=${value}`);
+                        }
+                        envInput.value = envLines.join('\n');
+                    }
+                }
+                
+                function generateServerNameFromCommand(command) {
+                    // Extract last part of command path
+                    const commandName = command.split(/[\/\\]/).pop();
+                    
+                    // Clean up and capitalize
+                    const baseName = commandName.replace(/\.[^/.]+$/, ''); // Remove file extension
+                    return baseName.charAt(0).toUpperCase() + baseName.slice(1) + ' Server';
+                }
             }
             
             // Restart Claude functionality
