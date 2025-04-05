@@ -29,7 +29,9 @@ from mcp_manager.mcp_server import discover_servers_from_claude_config
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename='mcp_server.log',
+    filemode='a'
 )
 logger = logging.getLogger(__name__)
 

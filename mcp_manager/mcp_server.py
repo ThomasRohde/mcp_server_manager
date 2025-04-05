@@ -285,6 +285,21 @@ async def handle_list_tools() -> List[mcp.types.Tool]:
                 },
                 "required": ["name", "command", "arguments"]
             }
+        ),
+        mcp.types.Tool(
+            name="start_fastapi_server",
+            description="Starts the FastAPI server and opens the default web browser to the UI",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "port": {
+                        "type": "integer",
+                        "description": "The port to run the server on (default: 8000)",
+                        "default": 8000
+                    }
+                },
+                "required": []
+            }
         )
     ]
 
@@ -557,6 +572,65 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[Union[m
                 "message": error_msg
             }
             return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
+    
+    elif name == "start_fastapi_server":
+        import subprocess
+        import webbrowser
+        import time
+        import pathlib
+        import os
+
+        try:
+            # Find the project directory (where main.py is)
+            project_dir = pathlib.Path(__file__).parent.parent.resolve()
+            logger.info(f"Starting FastAPI server in directory: {project_dir}")
+            
+            # On Windows, we need to use creationflags to create a detached process
+            # that doesn't depend on the parent process
+            startup_info = None
+            creation_flags = 0
+            
+            if os.name == 'nt':  # Windows
+                # Create a detached process that doesn't show a console window
+                creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            
+            # Start uvicorn as a completely detached process
+            port = arguments.get("port", 8000)
+            cmd = [sys.executable, "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", str(port)]
+            logger.info(f"Running command: {' '.join(cmd)}")
+            
+            # Start the process detached from this one
+            p = subprocess.Popen(
+                cmd, 
+                cwd=project_dir,
+                creationflags=creation_flags if os.name == 'nt' else 0,
+                start_new_session=True,  # This creates a new process group
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            
+            # Wait a moment for the server to start
+            logger.info("Waiting for server to start...")
+            time.sleep(2)
+            
+            # Open the browser
+            url = f"http://127.0.0.1:{port}"
+            logger.info(f"Opening browser to {url}")
+            webbrowser.open(url)
+            
+            result = {
+                "status": "success",
+                "message": f"FastAPI server started at {url} and browser opened."
+            }
+            logger.info(result["message"])
+        except Exception as e:
+            result = {
+                "status": "error",
+                "message": f"Failed to start FastAPI server: {str(e)}"
+            }
+            logger.error(f"Error in start_fastapi_server: {str(e)}", exc_info=True)
+        
+        return [mcp.types.TextContent(type="text", text=json.dumps(result, indent=2))]
     
     else:
         logger.error(f"Unknown tool name: {name}")

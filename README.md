@@ -9,6 +9,7 @@ MCP Server Manager allows you to:
 - Enable/disable MCP servers for use with Claude Desktop
 - Test server commands before registration
 - Restart Claude Desktop after configuration changes
+- Start the FastAPI server directly from Claude via MCP
 - Access functionality via both a web UI and MCP interface
 
 ## Prerequisites
@@ -77,6 +78,34 @@ python mcp_manager/mcp_server.py
 
 The MCP server runs in stdio mode, which means it reads from standard input and writes to standard output. This is the format expected by the MCP protocol.
 
+## MCP Tools
+
+The MCP Server Manager provides the following tools via the Model Context Protocol:
+
+1. **restart_claude_desktop** - Finds, terminates, and restarts the Claude Desktop application
+2. **set_server_enabled_status** - Enable or disable an MCP server in Claude Desktop
+3. **install_mcp_server** - Register a new MCP server configuration
+4. **start_fastapi_server** - Starts the FastAPI server and opens the default web browser to view the UI
+
+### Using the start_fastapi_server Tool
+
+With Claude Desktop, you can start the web interface directly by using the MCP tool:
+
+```
+start_fastapi_server
+```
+
+You can also specify a custom port:
+
+```
+start_fastapi_server port=8080
+```
+
+This will:
+1. Start the FastAPI server in the background
+2. Open your default web browser to the appropriate URL
+3. Allow you to manage your MCP servers through the web interface
+
 ## Integrating with Claude Desktop
 
 To use the MCP Server Manager with Claude Desktop:
@@ -116,3 +145,13 @@ uvicorn main:app --reload
 ```
 
 This will automatically restart the server when changes are detected in the code.
+
+## Logging
+
+Logs for the MCP Server Manager are written to:
+
+```
+C:\Users\<username>\AppData\Local\MCPManager\MCPManager\mcp_server.log
+```
+
+Check this file for debugging information if you encounter any issues with the server.
