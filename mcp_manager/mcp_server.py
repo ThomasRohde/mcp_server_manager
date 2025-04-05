@@ -11,6 +11,8 @@ This module provides an MCP interface for:
 import logging
 import json
 import asyncio
+import sys
+import os
 from typing import Dict, List, Any, Optional, Union
 
 # Import MCP Server library
@@ -19,20 +21,42 @@ import mcp.types
 import mcp.server.stdio
 from mcp.server.models import InitializationOptions
 
-# Import core logic functions
-from mcp_manager.core_logic import (
-    read_installed_servers,
-    write_installed_servers,
-    find_server_in_list,
-    read_claude_config,
-    update_claude_mcp_servers_section,
-    write_claude_config,
-    find_claude_processes,
-    terminate_processes,
-    start_claude_application,
-    generate_unique_id,
-    test_server_command
-)
+# Adjust the import path based on how the script is being run
+try:
+    # Try the standard package import first
+    from mcp_manager.core_logic import (
+        read_installed_servers,
+        write_installed_servers,
+        find_server_in_list,
+        read_claude_config,
+        update_claude_mcp_servers_section,
+        write_claude_config,
+        find_claude_processes,
+        terminate_processes,
+        start_claude_application,
+        generate_unique_id,
+        test_server_command
+    )
+except ModuleNotFoundError:
+    # If the script is run directly (not as a module), adjust the import path
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if (parent_dir not in sys.path):
+        sys.path.insert(0, parent_dir)
+    
+    # Try the import again
+    from mcp_manager.core_logic import (
+        read_installed_servers,
+        write_installed_servers,
+        find_server_in_list,
+        read_claude_config,
+        update_claude_mcp_servers_section,
+        write_claude_config,
+        find_claude_processes,
+        terminate_processes,
+        start_claude_application,
+        generate_unique_id,
+        test_server_command
+    )
 
 # Set up logging
 logging.basicConfig(
@@ -528,6 +552,9 @@ async def main_mcp():
     # Discover servers from Claude config on startup
     discover_servers_from_claude_config()
     
+    # Import the NotificationOptions class properly
+    from mcp.server.lowlevel.server import NotificationOptions
+    
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
@@ -535,7 +562,14 @@ async def main_mcp():
             InitializationOptions(
                 server_name="MCP Server Manager",
                 server_version="0.1.0",
-                capabilities=server.get_capabilities(),
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(
+                        prompts_changed=False,
+                        resources_changed=False,
+                        tools_changed=False
+                    ),
+                    experimental_capabilities={}
+                ),
             ),
         )
 
