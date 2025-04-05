@@ -1,0 +1,1 @@
+# MCP Manager package initialization

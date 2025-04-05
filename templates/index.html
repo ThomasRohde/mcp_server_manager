@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Server Manager</title>
+    <!-- Bootstrap CSS via CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">MCP Server Manager</h1>
+        
+        <!-- Message area for feedback -->
+        <div id="message-area" class="alert d-none"></div>
+        
+        <!-- Restart Claude Button -->
+        <button id="restart-claude-btn" class="btn btn-warning mb-4">
+            <i class="bi bi-arrow-repeat"></i> Restart Claude Desktop
+        </button>
+        
+        <h2 class="mt-4">Registered Servers</h2>
+        
+        {% if servers|length == 0 %}
+        <div class="alert alert-info mt-3">
+            No servers registered yet.
+        </div>
+        {% else %}
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Command</th>
+                    <th>Source</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for server in servers %}
+                <tr data-server-id="{{ server.id }}" data-server-name="{{ server.name }}">
+                    <td>{{ server.name }}</td>
+                    <td>
+                        {% if server.enabled_in_claude %}
+                        <span class="badge bg-success">Enabled</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ server.command[0] if server.command else "N/A" }}</td>
+                    <td>
+                        {% if server.source_type %}
+                        {{ server.source_type }}{% if server.source_location %}: {{ server.source_location }}{% endif %}
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input server-toggle" 
+                                   type="checkbox" 
+                                   id="toggle-{{ server.id }}" 
+                                   {% if server.enabled_in_claude %}checked{% endif %}
+                                   data-server-id="{{ server.id }}">
+                            <label class="form-check-label" for="toggle-{{ server.id }}">
+                                {% if server.enabled_in_claude %}Enabled{% else %}Disabled{% endif %}
+                            </label>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    <!-- Bootstrap JS (optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript for functionality -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Message area for displaying feedback
+            const messageArea = document.getElementById('message-area');
+            
+            // Function to show messages
+            function showMessage(type, text) {
+                messageArea.textContent = text;
+                messageArea.className = `alert alert-${type} my-3`;
+                messageArea.classList.remove('d-none');
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    messageArea.classList.add('d-none');
+                }, 5000);
+            }
+            
+            // Restart Claude functionality
+            const restartBtn = document.getElementById('restart-claude-btn');
+            if (restartBtn) {
+                restartBtn.addEventListener('click', async function() {
+                    console.log('Restart button clicked');
+                    
+                    // Show loading state
+                    restartBtn.disabled = true;
+                    restartBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Restarting...';
+                    
+                    // Hide any previous messages
+                    messageArea.classList.add('d-none');
+                    
+                    try {
+                        console.log('Making API request to /api/claude/restart');
+                        // Call the restart API endpoint
+                        const response = await fetch('/api/claude/restart', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        console.log('API response received:', response);
+                        const data = await response.json();
+                        console.log('API response data:', data);
+                        
+                        // Display message
+                        if (response.ok) {
+                            showMessage('success', data.message);
+                        } else {
+                            showMessage('danger', data.detail || 'An error occurred while restarting Claude Desktop');
+                        }
+                    } catch (error) {
+                        // Handle network errors
+                        console.error('Error during API call:', error);
+                        showMessage('danger', 'Network error: Failed to connect to the server');
+                    } finally {
+                        // Reset button state
+                        restartBtn.disabled = false;
+                        restartBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Restart Claude Desktop';
+                    }
+                });
+            }
+            
+            // Server toggle functionality
+            const serverToggles = document.querySelectorAll('.server-toggle');
+            serverToggles.forEach(toggle => {
+                toggle.addEventListener('change', async function() {
+                    // Get server info from data attributes
+                    const serverId = this.getAttribute('data-server-id');
+                    const serverRow = document.querySelector(`tr[data-server-id="${serverId}"]`);
+                    const serverName = serverRow ? serverRow.getAttribute('data-server-name') : 'Unknown server';
+                    const enabled = this.checked;
+                    
+                    // Update label text immediately for better UX
+                    const label = document.querySelector(`label[for="toggle-${serverId}"]`);
+                    if (label) {
+                        label.textContent = enabled ? 'Enabling...' : 'Disabling...';
+                    }
+                    
+                    // Disable toggle during API call
+                    this.disabled = true;
+                    
+                    try {
+                        // Make API call to update server status
+                        const response = await fetch(`/api/servers/${serverId}/status`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ enabled: enabled })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        // Handle response
+                        if (response.ok) {
+                            // Update status badge
+                            const statusBadge = serverRow.querySelector('.badge');
+                            if (statusBadge) {
+                                statusBadge.className = enabled ? 'badge bg-success' : 'badge bg-secondary';
+                                statusBadge.textContent = enabled ? 'Enabled' : 'Disabled';
+                            }
+                            
+                            // Update label
+                            if (label) {
+                                label.textContent = enabled ? 'Enabled' : 'Disabled';
+                            }
+                            
+                            // Show success message
+                            showMessage('success', data.message);
+                        } else {
+                            // Revert toggle state on error
+                            this.checked = !enabled;
+                            if (label) {
+                                label.textContent = !enabled ? 'Enabled' : 'Disabled';
+                            }
+                            
+                            // Show error message
+                            showMessage('danger', data.detail || 'Failed to update server status');
+                        }
+                    } catch (error) {
+                        // Handle network errors
+                        console.error('Error during API call:', error);
+                        
+                        // Revert toggle state
+                        this.checked = !enabled;
+                        if (label) {
+                            label.textContent = !enabled ? 'Enabled' : 'Disabled';
+                        }
+                        
+                        // Show error message
+                        showMessage('danger', 'Network error: Failed to connect to the server');
+                    } finally {
+                        // Re-enable toggle
+                        this.disabled = false;
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

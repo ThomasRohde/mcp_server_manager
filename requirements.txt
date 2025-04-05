@@ -1,0 +1,8 @@
+python-dotenv
+psutil
+platformdirs
+mcp
+fastapi
+uvicorn[standard]
+Jinja2
+python-multipart
