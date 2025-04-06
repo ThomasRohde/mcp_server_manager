@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import logging
+import os
+import platformdirs
 
 from mcp_manager.core_logic import (
     read_installed_servers, 
@@ -20,17 +22,22 @@ from mcp_manager.core_logic import (
     update_claude_mcp_servers_section,
     write_claude_config,
     test_server_command,
-    generate_unique_id
+    generate_unique_id,
+    APP_NAME
 )
 
 # Import the server discovery function
 from mcp_manager.mcp_server import discover_servers_from_claude_config
 
-# Set up logging
+# Set up logging with proper file path
+log_dir = platformdirs.user_data_dir(APP_NAME)
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'mcp_server.log')
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='mcp_server.log',
+    filename=log_file,
     filemode='a'
 )
 logger = logging.getLogger(__name__)
@@ -261,6 +268,88 @@ async def set_server_status_api(identifier: str, payload: Dict[str, bool]):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update server status: {str(e)}"
+        )
+
+@app.delete("/api/servers/{identifier}")
+async def delete_server_api(identifier: str):
+    """
+    Delete a server from the installed servers list.
+    
+    Args:
+        identifier (str): The ID of the server to delete
+        
+    Returns:
+        Dict with status and message
+        
+    Raises:
+        HTTPException: If there's an error deleting the server
+    """
+    logger.info(f"DELETE /api/servers/{identifier} - Deleting server")
+    
+    try:
+        # Read the current list of servers
+        servers = read_installed_servers()
+        logger.debug(f"Found {len(servers)} registered servers")
+        
+        # List all server IDs for debugging
+        server_ids = [f"{s.get('id', 'unknown')} ({s.get('name', 'unnamed')})" for s in servers]
+        logger.debug(f"Available server IDs: {', '.join(server_ids)}")
+
+        # Find the server by ID
+        server, error_msg = find_server_in_list(servers, identifier)
+
+        if not server:
+            logger.warning(f"Server not found with identifier: '{identifier}'")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg or f"Server with ID '{identifier}' not found"
+            )
+        
+        server_name = server['name']
+        server_id = server['id']
+        logger.info(f"Found server to delete: '{server_name}' (ID: {server_id})")
+        
+        # If the server is currently enabled in Claude, disable it first
+        if server.get("enabled_in_claude", False):
+            logger.info(f"Server '{server_name}' is enabled in Claude, removing from Claude config")
+            
+            # Update Claude Desktop config
+            claude_config = read_claude_config()
+            
+            # Remove from Claude config
+            claude_config = update_claude_mcp_servers_section(
+                claude_config, 
+                server_name,
+                None  # Set to None to remove the server
+            )
+            write_claude_config(claude_config)
+            
+            logger.info(f"Removed server '{server_name}' from Claude config")
+        
+        # Remove the server from the list
+        updated_servers = [s for s in servers if s.get('id', '') != server_id]
+        logger.debug(f"Removed server from list, remaining: {len(updated_servers)}")
+        
+        # Write the updated list back to the file
+        write_installed_servers(updated_servers)
+        
+        logger.info(f"Successfully deleted server '{server_name}' (ID: {server_id})")
+        
+        return {
+            "status": "success",
+            "message": f"Server '{server_name}' deleted successfully."
+        }
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+        
+    except Exception as e:
+        # Handle unexpected errors
+        logger.exception(f"Failed to delete server: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete server: {str(e)}"
         )
 
 # Run the application with: uvicorn main:app --reload

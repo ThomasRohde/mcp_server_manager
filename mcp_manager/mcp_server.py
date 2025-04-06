@@ -35,7 +35,8 @@ try:
         terminate_processes,
         start_claude_application,
         generate_unique_id,
-        test_server_command
+        test_server_command,
+        APP_NAME  # Import APP_NAME constant
     )
 except ModuleNotFoundError:
     # If the script is run directly (not as a module), adjust the import path
@@ -55,13 +56,22 @@ except ModuleNotFoundError:
         terminate_processes,
         start_claude_application,
         generate_unique_id,
-        test_server_command
+        test_server_command,
+        APP_NAME  # Import APP_NAME constant
     )
 
 # Set up logging
+import platformdirs
+
+log_dir = platformdirs.user_data_dir(APP_NAME)
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'mcp_server.log')
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename=log_file,
+    filemode='a'
 )
 logger = logging.getLogger(__name__)
 
@@ -541,7 +551,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[Union[m
             
             # Check for duplicate names
             for server in servers:
-                if server['name'] == server_name:
+                if (server['name'] == server_name):
                     error_msg = f"A server with the name '{server_name}' already exists"
                     logger.error(error_msg)
                     result = {

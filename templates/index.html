@@ -144,6 +144,11 @@
                                             {% if server.enabled_in_claude %}Enabled{% else %}Disabled{% endif %}
                                         </label>
                                     </div>
+                                    <button class="btn btn-sm btn-danger delete-server-btn mt-2" 
+                                        data-server-id="{{ server.id }}" 
+                                        data-server-name="{{ server.name }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -677,6 +682,107 @@
                     }
                 });
             }
+            
+            // Server deletion functionality
+            const deleteButtons = document.querySelectorAll('.delete-server-btn');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', async function() {
+                    // Get server info from data attributes
+                    const serverId = this.getAttribute('data-server-id');
+                    const serverName = this.getAttribute('data-server-name');
+                    const serverRow = document.querySelector(`tr[data-server-id="${serverId}"]`);
+                    
+                    console.log('Delete clicked for server:', { id: serverId, name: serverName });
+                    
+                    // Ask for confirmation
+                    if (!confirm(`Are you sure you want to delete "${serverName}"? This cannot be undone.`)) {
+                        return;
+                    }
+                    
+                    // Apply visual indication of pending state
+                    if (serverRow) {
+                        serverRow.classList.add('table-danger');
+                    }
+                    
+                    // Disable button during API call
+                    this.disabled = true;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                    
+                    try {
+                        // Make API call to delete server - ensure the ID is properly encoded
+                        // Remove any whitespace and ensure proper encoding
+                        const encodedId = encodeURIComponent(String(serverId).trim());
+                        console.log(`Sending delete request for server ID: ${encodedId}`);
+                        
+                        const url = `/api/servers/${encodedId}`;
+                        console.log(`Delete URL: ${url}`);
+                        
+                        const response = await fetch(url, {
+                            method: 'DELETE'
+                            // Removed Content-Type header as it's not needed for DELETE requests with no body
+                        });
+                        
+                        // Log the response for debugging
+                        console.log('Delete response status:', response.status);
+                        let data;
+                        try {
+                            data = await response.json();
+                            console.log('Delete response data:', data);
+                        } catch (parseError) {
+                            console.error('Error parsing response JSON:', parseError);
+                            data = { detail: 'Could not parse response from server' };
+                        }
+                        
+                        // Handle response
+                        if (response.ok) {
+                            // Show success message
+                            showMessage('success', data.message || 'Server deleted successfully');
+                            
+                            // Remove the server row with a fade effect
+                            if (serverRow) {
+                                serverRow.style.transition = 'opacity 0.5s ease';
+                                serverRow.style.opacity = '0';
+                                setTimeout(() => {
+                                    serverRow.remove();
+                                    
+                                    // If no more servers, refresh to show the empty state
+                                    const remainingServers = document.querySelectorAll('.server-row');
+                                    if (remainingServers.length === 0) {
+                                        window.location.reload();
+                                    }
+                                }, 500);
+                            }
+                        } else {
+                            // Remove pending visual state
+                            if (serverRow) {
+                                serverRow.classList.remove('table-danger');
+                            }
+                            
+                            // Show error message
+                            showMessage('danger', data.detail || `Failed to delete server (Status: ${response.status})`, false);
+                            
+                            // Reset button
+                            this.innerHTML = '<i class="bi bi-trash"></i>';
+                            this.disabled = false;
+                        }
+                    } catch (error) {
+                        // Handle network errors
+                        console.error('Error during API call:', error);
+                        
+                        // Remove pending visual state
+                        if (serverRow) {
+                            serverRow.classList.remove('table-danger');
+                        }
+                        
+                        // Reset button
+                        this.innerHTML = '<i class="bi bi-trash"></i>';
+                        this.disabled = false;
+                        
+                        // Show error message
+                        showMessage('danger', 'Network error: Failed to connect to the server', false);
+                    }
+                });
+            });
         });
     </script>
 </body>

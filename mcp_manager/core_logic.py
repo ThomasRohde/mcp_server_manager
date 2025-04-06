@@ -47,8 +47,16 @@ def get_config_path(filename: str) -> pathlib.Path:
     Returns:
         Path object representing the full path to the file
     """
+    # Use platformdirs to get the correct data directory
+    # Fix: Use the user_data_dir directly instead of adding APP_NAME again
     base_dir = platformdirs.user_data_dir(APP_NAME)
+    
+    # Ensure the directory exists
     os.makedirs(base_dir, exist_ok=True)
+    
+    # Log the path for debugging
+    logger.debug(f"Config path for {filename}: {os.path.join(base_dir, filename)}")
+    
     return pathlib.Path(base_dir) / filename
 
 
@@ -161,27 +169,31 @@ def find_server_in_list(servers: List[Dict[str, Any]], identifier: str) -> Tuple
         - If not found, (None, error_message)
         - If ambiguous (multiple by same name), (None, error_message)
     """
+    # Normalize the identifier by trimming whitespace
+    normalized_id = identifier.strip() if identifier else ""
+    
     # First, check for a server with matching ID
     for server in servers:
-        if server.get('id') == identifier:
-            logger.info(f"Found server with ID '{identifier}'")
+        server_id = server.get('id', '').strip() if server.get('id') else ""
+        if server_id == normalized_id:
+            logger.info(f"Found server with ID '{normalized_id}'")
             return (server, None)
     
     # If no ID match, look for servers with matching name
-    name_matches = [server for server in servers if server.get('name') == identifier]
+    name_matches = [server for server in servers if server.get('name') == normalized_id]
     
     if len(name_matches) == 1:
         # Exactly one name match found
-        logger.info(f"Found server with name '{identifier}'")
+        logger.info(f"Found server with name '{normalized_id}'")
         return (name_matches[0], None)
     elif len(name_matches) == 0:
         # No matches found
-        error_msg = f"No server found with identifier '{identifier}'."
+        error_msg = f"No server found with identifier '{normalized_id}'."
         logger.warning(error_msg)
         return (None, error_msg)
     else:
         # Multiple matches found - ambiguous
-        error_msg = f"Multiple servers found with name '{identifier}'. Use unique ID."
+        error_msg = f"Multiple servers found with name '{normalized_id}'. Use unique ID."
         logger.warning(error_msg)
         return (None, error_msg)
 
