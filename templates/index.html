@@ -134,21 +134,23 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input server-toggle" 
-                                            type="checkbox" 
-                                            id="toggle-{{ server.id }}" 
-                                            {% if server.enabled_in_claude %}checked{% endif %}
-                                            data-server-id="{{ server.id }}">
-                                        <label class="form-check-label" for="toggle-{{ server.id }}">
-                                            {% if server.enabled_in_claude %}Enabled{% else %}Disabled{% endif %}
-                                        </label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input server-toggle" 
+                                                type="checkbox" 
+                                                id="toggle-{{ server.id }}" 
+                                                {% if server.enabled_in_claude %}checked{% endif %}
+                                                data-server-id="{{ server.id }}">
+                                            <label class="form-check-label" for="toggle-{{ server.id }}">
+                                                {% if server.enabled_in_claude %}Enabled{% else %}Disabled{% endif %}
+                                            </label>
+                                        </div>
+                                        <button class="btn btn-sm btn-danger delete-server-btn" 
+                                            data-server-id="{{ server.id }}" 
+                                            data-server-name="{{ server.name }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </div>
-                                    <button class="btn btn-sm btn-danger delete-server-btn mt-2" 
-                                        data-server-id="{{ server.id }}" 
-                                        data-server-name="{{ server.name }}">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
