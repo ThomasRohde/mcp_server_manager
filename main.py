@@ -30,7 +30,8 @@ from mcp_manager.core_logic import (
 from mcp_manager.mcp_server import discover_servers_from_claude_config
 
 # Set up logging with proper file path
-log_dir = platformdirs.user_data_dir(APP_NAME)
+log_base = platformdirs.user_data_dir(appname=None, appauthor=False)
+log_dir = os.path.join(log_base, APP_NAME)
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, 'mcp_server.log')
 

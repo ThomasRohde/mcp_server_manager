@@ -63,7 +63,8 @@ except ModuleNotFoundError:
 # Set up logging
 import platformdirs
 
-log_dir = platformdirs.user_data_dir(APP_NAME)
+log_base = platformdirs.user_data_dir(appname=None, appauthor=False)
+log_dir = os.path.join(log_base, APP_NAME)
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, 'mcp_server.log')
 

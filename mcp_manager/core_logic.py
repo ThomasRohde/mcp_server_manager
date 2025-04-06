@@ -48,15 +48,16 @@ def get_config_path(filename: str) -> pathlib.Path:
         Path object representing the full path to the file
     """
     # Use platformdirs to get the correct data directory
-    # Fix: Use the user_data_dir directly instead of adding APP_NAME again
-    base_dir = platformdirs.user_data_dir(APP_NAME)
-    
+    # Fix: Avoid double APP_NAME nesting
+    base_dir = platformdirs.user_data_dir(appname=None, appauthor=False)
+    base_dir = os.path.join(base_dir, APP_NAME)
+
     # Ensure the directory exists
     os.makedirs(base_dir, exist_ok=True)
-    
+
     # Log the path for debugging
     logger.debug(f"Config path for {filename}: {os.path.join(base_dir, filename)}")
-    
+
     return pathlib.Path(base_dir) / filename
 
 
