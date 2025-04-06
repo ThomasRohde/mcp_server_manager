@@ -14,6 +14,7 @@ import asyncio
 import sys
 import os
 from typing import Dict, List, Any, Optional, Union
+import unicodedata
 
 # Import MCP Server library
 from mcp.server import Server
@@ -186,31 +187,24 @@ async def handle_list_resources() -> List[mcp.types.Resource]:
 
 
 @server.read_resource()
-async def handle_read_resource(uri: str) -> str:
-    """
-    Handler for reading a resource.
-    
-    Args:
-        uri: The URI of the resource to read
-        
-    Returns:
-        The resource content as a string
-        
-    Raises:
-        ValueError: If the requested URI is not recognized
-    """
-    logger.info(f"Reading resource: {uri}")
-    
-    if uri == "mcpmanager://servers/installed":
+async def handle_read_resource(uri) -> str:
+    uri_str = str(uri)
+    logger.info(f"Received read_resource request for URI: {repr(uri_str)}")
+
+    normalized_uri = unicodedata.normalize('NFC', uri_str).strip()
+    known_uri = "mcpmanager://servers/installed"
+
+    if normalized_uri == known_uri:
         try:
             servers = read_installed_servers()
+            logger.info("Successfully read installed servers")
             return json.dumps(servers, indent=2)
         except Exception as e:
             logger.error(f"Error reading installed servers: {str(e)}")
             raise
     else:
-        logger.error(f"Unknown resource URI: {uri}")
-        raise ValueError(f"Unknown resource URI: {uri}")
+        logger.warning(f"Unknown resource URI requested: {repr(normalized_uri)}")
+        raise ValueError(f"Unknown resource URI: {normalized_uri}. Known URIs: ['{known_uri}']")
 
 
 @server.list_tools()
